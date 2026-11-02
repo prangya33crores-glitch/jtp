@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1793253995064,
+      "tag": "0000_vengeful_dreaming_celestial",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793269696598,
+      "tag": "0001_fast_millenium_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793271198237,
+      "tag": "0002_familiar_scream",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793271262523,
+      "tag": "0003_broken_sentinels",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793616738661,
+      "tag": "0004_supabase_cutover_guard",
+      "breakpoints": true
+    }
+  ]
+}

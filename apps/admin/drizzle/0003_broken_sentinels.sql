@@ -1,0 +1,1 @@
+ALTER TABLE `password_sessions` ADD `credential_hash` text DEFAULT '' NOT NULL;
