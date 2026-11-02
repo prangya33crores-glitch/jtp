@@ -5,6 +5,11 @@ import { readExecutionProfile } from "./execution-profile.mjs";
 const [command, ...args] = process.argv.slice(2);
 if (!["dev", "build"].includes(command)) throw new Error("Expected dev or build.");
 const managedLinux = readExecutionProfile() === "managed-linux";
+// Portable laptop development loads server-only Cloudflare variables from .dev.vars.
+if (!managedLinux && command === "dev") {
+  try { process.loadEnvFile(fileURLToPath(new URL("../.dev.vars", import.meta.url))); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+}
 
 if (managedLinux && command === "build") {
   const result = spawnSync("bash", [
@@ -19,5 +24,5 @@ const cli = new URL(managedLinux
   ? "../node_modules/vite/bin/vite.js"
   : "../node_modules/vinext/dist/cli.js", import.meta.url);
 process.argv = [process.execPath, fileURLToPath(cli), command,
-  ...(!managedLinux && command === "dev" ? ["--port", "5173"] : []), ...args];
+  ...(!managedLinux && command === "dev" && !args.includes("--port") ? ["--port", "5173"] : []), ...args];
 await import(cli.href);
