@@ -75,3 +75,28 @@ Schema and operation registry: `supabase/schema/initial.sql`. After importing th
 Verified transfer: 180 personnel, 3 shifts, 1 location, 3 leaders, 1 leave policy, 20 duty assignments, 14 audit entries, 1 password account, 1 legacy access account, and session/throttling/settings rows. Leave and payroll tables in the workspace were empty. All seven source tables matched SHA-256 checks after import, including JSON state and password hashes.
 
 Health: `/api/database-health` returns only readiness and database provider, never records.
+
+## Separate business tables (current storage)
+
+The application now reads and writes separate typed PostgreSQL tables. `workspaces` holds only the workspace ID and revision; it no longer has a `data` column.
+
+| Module | Supabase public table |
+| --- | --- |
+| JTP employees (185, including TEST001–TEST005) | `employees` |
+| Shift master | `shifts` |
+| Location master | `duty_locations` |
+| Shift leaders | `shift_leaders` |
+| Leave policies | `leave_policies` |
+| Leave records | `leave_requests` |
+| Duty roster | `duty_assignments` |
+| Salary records | `payroll` |
+| Application settings | `app_settings` |
+| Activity history | `activity_log` |
+
+The existing account, password session, throttling and audit tables remain separate. Nullable extra application fields are preserved in each row's `attributes`; core business fields are individual SQL columns. `text_fields` retains existing numeric-string representations for exact migration compatibility; `sort_order` preserves display order.
+
+Apply `supabase/schema/normalize-tables.sql` after the initial storage schema and cutover cleanup for a new installation. The migration verifies an exact JSON round-trip before removing the old active blob column. A private, non-browser-accessible snapshot is retained in `jtp_private.workspace_json_backup`. The temporary JSON API envelope is assembled from live rows by `jtp_workspace_state`; it is not stored as an active workspace blob. `jtp_write_workspace` performs transactional relational upserts/deletions with revision checks. The gateway's exact SQL allowlist adapts the old server protocol to those functions, so both hosted apps use the same relational data without changing their UI or employee sessions. Server writes and audit records retain transaction boundaries.
+
+Direct Supabase Table Editor edits bump the workspace revision, so a stale admin tab cannot silently overwrite those changes. Refresh the admin app after editing rows directly. Tables have RLS enabled with no browser grants; all access remains through server authorization and service-role-only functions.
+
+Run `supabase/schema/verify-normalized.sql` to verify reads, saves, stale-revision rejection, dashboard edit visibility, query parameter isolation and duty deletion. Test writes are rolled back.

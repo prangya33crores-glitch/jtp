@@ -1,0 +1,11 @@
+{
+  "personnel": "employees",
+  "shifts": "shifts",
+  "locations": "duty_locations",
+  "leaders": "shift_leaders",
+  "policies": "leave_policies",
+  "leaves": "leave_requests",
+  "assignments": "duty_assignments",
+  "payroll": "payroll",
+  "history": "activity_log"
+}
