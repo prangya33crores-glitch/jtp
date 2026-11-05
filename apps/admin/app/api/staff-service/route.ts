@@ -1,3 +1,4 @@
+import {attendanceData,markAttendance} from '../../../lib/attendance';
 import {employeeLeaveRequest} from '../../../lib/engine';
 import {env} from 'cloudflare:workers';
 import {db,readWorkspace,privateJson} from '../../../lib/portal-db';
@@ -24,6 +25,8 @@ export async function POST(req:Request){const secret=(env as any).JTP_EMPLOYEE_B
    return privateJson({...await createSession(row.id,hash),ok:true});
   }
   if(row.must_change)return privateJson({mustChange:true,employee:{name:state.personnel.find(x=>x.id===row.person)?.name}},200);
+  if(p.action==='attendanceData'){try{return privateJson(await attendanceData(row.workspace,p.month,row.person))}catch(e){return privateJson({error:(e as Error).message},400)}}
+  if(p.action==='markAttendance'){try{return privateJson({record:await markAttendance(row.workspace,row.person,p.date,p.assignment,row.id,'Employee')})}catch(e){return privateJson({error:(e as Error).message},400)}}
   if(p.action==='applyLeave'){
    try{
     const current=await db().prepare('SELECT revision, data FROM workspaces WHERE id = ?').bind(row.workspace).first<{revision:number,data:string}>();if(!current)throw Error('Workspace unavailable.');

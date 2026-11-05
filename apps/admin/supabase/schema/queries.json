@@ -29,5 +29,8 @@
   "UPDATE employee_access SET status=? WHERE id=?",
   "UPDATE employee_access SET user_id=?,email=?,code_hash=NULL,expires_at=NULL WHERE id=? AND code_hash=? AND user_id IS NULL AND status='Active' AND expires_at>?",
   "UPDATE password_accounts SET password_hash=?,must_change=0,updated_at=? WHERE id=? AND password_hash=?",
-  "UPDATE password_accounts SET status=?,updated_at=? WHERE id=?"
+  "UPDATE password_accounts SET status=?,updated_at=? WHERE id=?",
+  "SELECT * FROM attendance WHERE workspace=? AND date>=? AND date<=? ORDER BY date DESC,person",
+  "SELECT * FROM attendance WHERE workspace=? AND person=? AND date>=? AND date<=? ORDER BY date DESC",
+  "SELECT mark_attendance(?,?,?,?,?,?) AS record"
 ]
