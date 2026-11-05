@@ -1,3 +1,4 @@
+import {employeeLeaveRequest} from '../../../lib/engine';
 import {env} from 'cloudflare:workers';
 import {db,readWorkspace,privateJson} from '../../../lib/portal-db';
 import {digest,randomToken,verifyPassword,passwordHash,dummyPasswordHash,secureEqual,normalizeLogin,ownEmployeeData,checkPassword} from '../../../lib/password-auth';
@@ -23,6 +24,18 @@ export async function POST(req:Request){const secret=(env as any).JTP_EMPLOYEE_B
    return privateJson({...await createSession(row.id,hash),ok:true});
   }
   if(row.must_change)return privateJson({mustChange:true,employee:{name:state.personnel.find(x=>x.id===row.person)?.name}},200);
+  if(p.action==='applyLeave'){
+   try{
+    const current=await db().prepare('SELECT revision, data FROM workspaces WHERE id = ?').bind(row.workspace).first<{revision:number,data:string}>();if(!current)throw Error('Workspace unavailable.');
+    const next=employeeLeaveRequest(JSON.parse(current.data),row.person,{policy:p.policy,from:p.from,to:p.to,reason:p.reason});const data=JSON.stringify(next);if(data.length>1500000)throw Error('Workspace limit reached. Contact Admin.');
+    const results=await db().batch([
+     db().prepare('INSERT INTO workspaces(id,revision,data) VALUES(?,1,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data,revision=workspaces.revision+1 WHERE workspaces.revision=?').bind(row.workspace,data,current.revision),
+     db().prepare('INSERT INTO audit(id,workspace,action,details,created_at) SELECT ?,?,?,?,? WHERE EXISTS (SELECT 1 FROM workspaces WHERE id=? AND revision=? AND data=?)').bind(crypto.randomUUID(),row.workspace,'employeeLeaveRequest',JSON.stringify({person:row.person,from:p.from,to:p.to}),now(),row.workspace,current.revision+1,data)
+    ]);
+    if(!results[0].meta.changes)return privateJson({error:'Another change was saved. Please submit again.'},409);
+    return privateJson({ok:true});
+   }catch(e){return privateJson({error:(e as Error).message},400)}
+  }
   if(p.action==='data')return privateJson(ownEmployeeData(state,row.person,p.month||today().slice(0,7),today()));
   throw Error('Invalid action.');
  }catch(e){return privateJson({error:(e as Error).message},401);}}

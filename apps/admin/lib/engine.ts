@@ -72,3 +72,13 @@ export function employeeSchedule(s:State,personId:string,month:string,includeDra
   return assignments.map(a=>{const shift=s.shifts.find(sh=>sh.id===a.shift);return {date,status:a.status,shift:shift?.name||'Unknown shift',timing:shift?`${shift.start} – ${shift.end}${shift.end<shift.start?' (next day)':''}`:'—',location:s.locations.find(l=>l.id===a.location)?.name||'—',leader:s.leaders.find(l=>l.id===a.leader)?.name||'—'};}).sort((a,b)=>a.timing.localeCompare(b.timing));
  });
 }
+
+export function employeeLeaveRequest(state:State,person:string,input:Record<string,unknown>){
+ if(!state.personnel.some(p=>p.id===person&&p.status==='Active'))throw Error('Employee account is not active.');
+ const policy=state.policies.find(p=>p.id===input.policy&&p.status==='Active');if(!policy)throw Error('Choose an active leave type.');
+ const {from,to,reason}=input;
+ if(typeof from!=='string'||typeof to!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||new Date(from+'T12:00:00Z').toISOString().slice(0,10)!==from||new Date(to+'T12:00:00Z').toISOString().slice(0,10)!==to)throw Error('Enter valid leave dates.');
+ if(typeof reason!=='string'||!reason.trim()||reason.length>1000)throw Error('Enter a reason of up to 1000 characters.');
+ if(state.leaves.some(l=>l.person===person&&['Pending','Approved'].includes(l.status)&&from<=l.to&&to>=l.from))throw Error('A pending or approved leave request already overlaps these dates.');
+ return apply(state,'leave',{person,policy:policy.id,from,to,reason:reason.trim(),status:'Pending',half:false});
+}
