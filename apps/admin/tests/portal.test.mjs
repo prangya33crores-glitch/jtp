@@ -86,3 +86,13 @@ test('employee attendance always uses authenticated employee identity and publis
  assert.notEqual((await attendanceApi.POST(request('/api/attendance','intruder',{person:'p1',date,assignment:'self-duty'}))).status,200);
 });
 test('attendance month validation includes real month ends',()=>{assert.equal(attendanceHelpers.attendanceMonth('2028-02').to,'2028-02-29');assert.equal(attendanceHelpers.attendanceMonth('2026-02').to,'2026-02-28');assert.throws(()=>attendanceHelpers.attendanceMonth('2026-13'))});
+test('automatic roster API uses server period, rejects legacy month actions, and prevents stale duplicate saves',async()=>{
+ state.assignments=[];state.settings={};sql.prepare('UPDATE workspaces SET data=?').run(JSON.stringify(state));
+ const loaded=await (await workspaceApi.GET(request('/api/workspace'))).json();const {month,week,from,to}=loaded.currentPeriod;
+ for(const action of ['assign','publish'])assert.equal((await workspaceApi.POST(request('/api/workspace','owner',{action,payload:{month},revision:0}))).status,400);
+ const generated=await workspaceApi.POST(request('/api/workspace','owner',{action:'autoRoster',payload:{month,week,now:'2099-01-01'},revision:0}));assert.equal(generated.status,200);const result=await generated.json();assert.ok(result.state.assignments.every(a=>a.date>=from&&a.date<=to));assert.ok(result.state.assignments.length>0);
+ assert.equal((await workspaceApi.POST(request('/api/workspace','owner',{action:'autoRoster',payload:{month,week},revision:0}))).status,409);
+ const next=await (await workspaceApi.POST(request('/api/workspace','owner',{action:'autoRoster',payload:{month,week},revision:result.revision}))).json();assert.deepEqual(next.state.assignments,result.state.assignments);
+ const published=await workspaceApi.POST(request('/api/workspace','owner',{action:'publishPeriod',payload:{month,week},revision:next.revision}));assert.equal(published.status,200);const final=await published.json();assert.ok(final.state.assignments.every(a=>a.status==='Published'));
+ assert.equal((await workspaceApi.POST(request('/api/workspace','employee1',{action:'autoRoster',payload:{month,week},revision:final.revision}))).status,400);
+});

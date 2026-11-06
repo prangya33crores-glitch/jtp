@@ -24,6 +24,12 @@ BEGIN
  JOIN public.duty_locations loc ON loc.workspace=da.workspace AND loc.id=da.location
  WHERE da.workspace=w AND da.person=p AND da.id=a AND da.date=d AND da.status='Published' AND e.status='Active'
  AND NOT EXISTS(SELECT 1 FROM public.leave_requests l WHERE l.workspace=w AND l.person=p AND l.status='Approved' AND d BETWEEN l."from" AND l."to")
+ AND (NOT (da.attributes ? 'replacesAssignment') OR EXISTS (
+  SELECT 1 FROM public.duty_assignments original JOIN public.leave_requests l
+   ON l.workspace=original.workspace AND l.person=original.person AND l.status='Approved'
+   AND original.date BETWEEN l."from" AND l."to"
+  WHERE original.workspace=da.workspace AND original.id=da.attributes->>'replacesAssignment' AND original.date=da.date
+ ))
  ON CONFLICT(workspace,person,date) DO NOTHING RETURNING to_jsonb(attendance.*) INTO result;
  RETURN result;
 END $$;

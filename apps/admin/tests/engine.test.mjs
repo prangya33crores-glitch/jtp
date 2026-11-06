@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {initial,apply,period,leaveDays} from '../lib/engine.ts';
+import {initial,apply,period,leaveDays,effectiveDuty} from '../lib/engine.ts';
 function fixture(){const s=initial();s.personnel=[{id:'p',name:'Test Person',code:'JTP0001',salary:15000,status:'Active',joined:'2020-01-01'}];s.shifts=[{id:'day',name:'Day',start:'06:00',end:'14:00',status:'Active'},{id:'night',name:'Night',start:'22:00',end:'06:00',status:'Active'},{id:'early',name:'Early',start:'05:00',end:'13:00',status:'Active'}];s.locations=[{id:'gate',name:'Gate',status:'Active'}];s.policies=[{id:'paid',name:'Casual',classification:'Paid',frequency:'Monthly',entitlement:2},{id:'unpaid',name:'LWP',classification:'Unpaid',frequency:'Annual',entitlement:365}];return s;}
 const assign=(from,to,shift='day')=>({people:['p'],from,to,shift,location:'gate'});
 const leave=(from,to,policy='unpaid',extra={})=>({person:'p',policy,from,to,status:'Approved',...extra});
@@ -9,7 +9,7 @@ test('bulk duty assignments persist every selected date',()=>{const s=apply(fixt
 test('duplicate overlapping duty is blocked',()=>{const s=apply(fixture(),'assign',assign('2026-10-01','2026-10-01'));assert.throws(()=>apply(s,'assign',assign('2026-10-01','2026-10-01')),/overlapping/);});
 test('overnight shift overlaps next day early shift',()=>{const s=apply(fixture(),'assign',assign('2026-10-01','2026-10-01','night'));assert.throws(()=>apply(s,'assign',assign('2026-10-02','2026-10-02','early')),/overlapping/);});
 test('adjacent overnight and day shifts are permitted',()=>{let s=apply(fixture(),'assign',assign('2026-10-01','2026-10-01','night'));s=apply(s,'assign',assign('2026-10-02','2026-10-02'));assert.equal(s.assignments.length,2);});
-test('approved leave clears duty and blocks reassignment',()=>{let s=apply(fixture(),'assign',assign('2026-10-01','2026-10-03'));s=apply(s,'leave',leave('2026-10-02','2026-10-02'));assert.equal(s.assignments.length,2);assert.throws(()=>apply(s,'assign',assign('2026-10-02','2026-10-02')),/approved leave/);});
+test('approved leave suppresses duty, preserves history and blocks reassignment',()=>{let s=apply(fixture(),'assign',assign('2026-10-01','2026-10-03'));s=apply(s,'leave',leave('2026-10-02','2026-10-02'));assert.equal(s.assignments.filter(a=>effectiveDuty(s,a)).length,2);assert.equal(s.assignments.length,3);assert.throws(()=>apply(s,'assign',assign('2026-10-02','2026-10-02')),/approved leave/);});
 test('paid leave does not deduct salary',()=>{let s=apply(fixture(),'leave',leave('2026-09-01','2026-09-02','paid'));s=apply(s,'payroll',{month:'2026-09'});assert.equal(s.payroll[0].net,15000);assert.equal(s.payroll[0].paid,2);});
 test('unpaid leave deducts 1500 for three days in September',()=>{let s=apply(fixture(),'leave',leave('2026-09-01','2026-09-03'));s=apply(s,'payroll',{month:'2026-09'});assert.equal(s.payroll[0].net,13500);});
 test('cross-month leave is split between payroll months',()=>{let s=apply(fixture(),'leave',leave('2026-09-30','2026-10-02'));s=apply(s,'payroll',{month:'2026-09'});s=apply(s,'payroll',{month:'2026-10'});assert.equal(s.payroll[0].unpaid,1);assert.equal(s.payroll[1].unpaid,2);});
