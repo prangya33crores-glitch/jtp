@@ -24,3 +24,21 @@ test('production keeps the existing Edge Function authentication',async()=>{
  globalThis.fetch=async(url,init)=>{assert.equal(url,'https://example.supabase.co/functions/v1/jtp-database');assert.equal(init.headers['x-jtp-key'],'existing-gateway-key');assert.equal(init.headers.apikey,undefined);return Response.json([]);};
  assert.deepEqual(await gateway('batch',{statements:[]}),[]);
 });
+test('temporary gateway failures retry attendance and recover without changing payload',async()=>{
+ const {gateway}=await database(false,{JTP_SUPABASE_URL:'https://example.supabase.co',JTP_SUPABASE_SECRET:'test'});
+ let calls=0;const payload={statements:[{sql:'SELECT mark_attendance(?,?,?,?,?,?) AS record',params:['workspace','person','2026-11-05','duty','admin','Admin']}]};
+ globalThis.fetch=async(url,init)=>{assert.deepEqual(JSON.parse(init.body),{action:'batch',...payload});return ++calls===1?new Response('',{status:503}):Response.json([{results:[{record:{status:'Present'}}]}]);};
+ assert.equal((await gateway('batch',payload))[0].results[0].record.status,'Present');assert.equal(calls,2);
+});
+test('authentication failures and ordinary writes are not retried',async()=>{
+ const {gateway}=await database(false,{JTP_SUPABASE_URL:'https://example.supabase.co',JTP_SUPABASE_SECRET:'test'});
+ for(const [status,sql] of [[401,'SELECT * FROM attendance WHERE workspace=?'],[503,'INSERT INTO workspaces VALUES (?)']]){
+  let calls=0;globalThis.fetch=async()=>{calls++;return new Response('',{status})};
+  await assert.rejects(gateway('batch',{statements:[{sql,params:['test']}]}));assert.equal(calls,1);
+ }
+});
+test('persistent temporary read failures stop after three attempts',async()=>{
+ const {gateway}=await database(false,{JTP_SUPABASE_URL:'https://example.supabase.co',JTP_SUPABASE_SECRET:'test'});
+ let calls=0;globalThis.fetch=async()=>{calls++;return new Response('',{status:503})};
+ await assert.rejects(gateway('batch',{statements:[{sql:'SELECT * FROM attendance WHERE workspace=?',params:['test']}]}),/temporarily unavailable/);assert.equal(calls,3);
+});
